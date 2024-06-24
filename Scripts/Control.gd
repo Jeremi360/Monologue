@@ -129,7 +129,13 @@ func _to_dict() -> Dictionary:
 
 
 func file_selected(path, open_mode):
-	if not FileAccess.open(path, FileAccess.READ):
+	$WelcomeWindow.show()
+	$NoInteractions.show()
+	
+	if OS.get_name() == "Web" and !file_handle:
+		return
+
+	elif not FileAccess.open(path, FileAccess.READ):
 		return
 	
 	for ge in graph_edits.get_children():
@@ -217,17 +223,28 @@ func save(quick: bool = false):
 
 
 func load_project(path):
-	if not FileAccess.file_exists(path):
+	if OS.get_name() == "Web" and !file_handle:
+		return
+	
+	elif not FileAccess.file_exists(path):
 		return
 		
 	$NoInteractions.hide()
 	var graph_edit = get_current_graph_edit()
 	
-	var file := FileAccess.get_file_as_string(path)
+	var file := ""
+	if OS.get_name() == "Web":
+		file = file_handle.path
+	else:
+		file = FileAccess.get_file_as_string(path)
 	graph_edit.name = path.get_file().trim_suffix(".json")
 	
 	var data := {}
-	data = JSON.parse_string(file)
+	if OS.get_name() == "Web":
+		var text := await file_handle.as_text()
+		data = JSON.parse_string(text)
+	else:
+		data = JSON.parse_string(file)
 
 	if not data:
 		data = _to_dict()
@@ -428,27 +445,43 @@ func test_project(from_selected_node: bool = false):
 #  File selection  #
 ####################
 
-func new_file_select():
-	$FileDialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-	$FileDialog.title = "Crate New File"
-	$FileDialog.ok_button_text = "Crate"
-	$FileDialog.popup_centered()
-	var new_file_path = await $FileDialog.file_selected
+var file_handle : HTML5FileHandle 
 
-	if new_file_path:
-		FileAccess.open(new_file_path, FileAccess.WRITE)
-		return new_file_path
+func new_file_select():
+	$WelcomeWindow.hide()
+	
+	if OS.get_name() == "Web":
+		$HTML5FileDialog.show()
+		file_handle = await $HTML5FileDialog.file_selected
+		return file_handle.path
+
+	else:
+		$FileDialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+		$FileDialog.title = "Crate New File"
+		$FileDialog.ok_button_text = "Crate"
+		$FileDialog.popup_centered()
+		var new_file_path = await $FileDialog.file_selected
+	
+		if new_file_path:
+			FileAccess.open(new_file_path, FileAccess.WRITE)
+			return new_file_path
 	
 	return null
 
 func open_file_select():
-	$FileDialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	$FileDialog.title = "Open File"
-	$FileDialog.ok_button_text = "Open"
-	$FileDialog.popup_centered()
-	var open_file = await $FileDialog.file_selected
-	if open_file: return open_file
-	return null
+	$WelcomeWindow.hide()
+
+	if OS.get_name() == "Web":
+		$HTML5FileDialog.show()
+		file_handle = await $HTML5FileDialog.file_selected
+		return file_handle.path
+	
+	else:
+		$FileDialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		$FileDialog.title = "Open File"
+		$FileDialog.ok_button_text = "Open"
+		$FileDialog.popup_centered()
+		return await $FileDialog.file_selected
 
 func _on_graph_edit_connection_to_empty(from_node, from_port, _release_position):
 	graph_node_selecter.position = get_viewport().get_mouse_position()
@@ -507,9 +540,9 @@ func _on_file_id_pressed(id):
 		0: # Open file
 			var new_file_path = await open_file_select()
 			if new_file_path == null:
+				$WelcomeWindow.show()
 				return
-				
-			$WelcomeWindow.hide()
+			
 			$FileDialog.hide()
 			new_graph_edit()
 			return await file_selected(new_file_path, 1)
@@ -517,9 +550,9 @@ func _on_file_id_pressed(id):
 		1: # New file
 			var new_file_path = await new_file_select()
 			if new_file_path == null:
+				$WelcomeWindow.show()
 				return
-				
-			$WelcomeWindow.hide()
+			
 			$FileDialog.hide()
 			new_graph_edit()
 			return await file_selected(new_file_path, 0)
