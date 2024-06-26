@@ -73,7 +73,15 @@ func _ready():
 				data.erase(path)
 			for path in data.slice(0, 3):
 				var btn: Button = recent_file_button.instantiate()
-				btn.text = path
+				var btn_text = path.replace("\\", "/")
+				btn_text = btn_text.replace("//", "/")
+				btn_text = btn_text.split("/")
+				if btn_text.size() >= 2:
+					btn_text = btn_text.slice(-2, btn_text.size())
+					btn_text = btn_text[0].path_join(btn_text[1])
+				else:
+					btn_text = btn_text.back()
+				btn.text = btn_text
 				btn.pressed.connect(file_selected.bind(path, 1))
 				recent_files_button_container.add_child(btn)
 			recent_files_container.show()
